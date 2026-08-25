@@ -23,9 +23,11 @@ class AuditService:
         state = self._state()
         state["marketplace_items"] = [
             {
+                "audit_id": item.audit_id,
                 "sku": item.sku,
                 "title": item.title,
                 "cover_image": item.cover_image,
+                "non_unique_sku": item.non_unique_sku,
                 "marketplaces": {
                     marketplace: [
                         {
@@ -59,16 +61,16 @@ class AuditService:
         self.store.save(state)
         return state
 
-    def set_physical_status(self, sku: str, status: str) -> dict[str, Any]:
+    def set_physical_status(self, audit_id: str, status: str) -> dict[str, Any]:
         status = status.lower().strip()
         if status not in {"found", "missing", "unchecked"}:
             raise ValueError("status must be found, missing or unchecked")
         state = self._state()
         audit = state.setdefault("audit", {})
         if status == "unchecked":
-            audit.pop(sku, None)
+            audit.pop(audit_id, None)
         else:
-            audit[sku] = status
+            audit[audit_id] = status
         self.store.save(state)
         return state
 
@@ -95,8 +97,9 @@ class AuditService:
         state = self._state()
         total = len(state.get("marketplace_items", []))
         audit = state.get("audit", {})
-        found = sum(1 for status in audit.values() if status == "found")
-        missing = sum(1 for status in audit.values() if status == "missing")
+        valid_ids = {item.get("audit_id") or item.get("sku") for item in state.get("marketplace_items", [])}
+        found = sum(1 for key, status in audit.items() if key in valid_ids and status == "found")
+        missing = sum(1 for key, status in audit.items() if key in valid_ids and status == "missing")
         unchecked = max(0, total - found - missing)
         state["audit_completed_at"] = datetime.now(timezone.utc).isoformat()
         state["completion_summary"] = {
