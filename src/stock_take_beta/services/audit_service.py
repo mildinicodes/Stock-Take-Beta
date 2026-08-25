@@ -52,6 +52,8 @@ class AuditService:
         ]
         state["duplicates"] = result["duplicates"]
         state["marketplace_counts"] = result["counts"]
+        state["marketplace_captured_counts"] = result.get("captured_counts", {})
+        state["marketplace_sku_counts"] = result.get("sku_counts", {})
         state["last_refreshed_at"] = datetime.now(timezone.utc).isoformat()
         state["audit_completed_at"] = None
         self.store.save(state)
