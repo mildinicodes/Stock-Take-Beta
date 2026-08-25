@@ -85,16 +85,22 @@ class MainWindow(tk.Tk):
         state = self.progress_store.load()
         items = state.get("marketplace_items", [])
         audit = state.get("audit", {})
-        found = sum(1 for value in audit.values() if value == "found")
-        missing = sum(1 for value in audit.values() if value == "missing")
+        valid_ids = {item.get("audit_id") or item.get("sku") for item in items}
+        found = sum(1 for key, value in audit.items() if key in valid_ids and value == "found")
+        missing = sum(1 for key, value in audit.items() if key in valid_ids and value == "missing")
         unchecked = max(0, len(items) - found - missing)
         self.page_title.config(text="Shorts Stock Audit")
         refreshed = state.get("last_refreshed_at") or "Never"
-        self.page_subtitle.config(text=f"Crosslist Import · Vinted + eBay + Etsy · Last refresh: {refreshed}")
+        counts = state.get("marketplace_counts", {})
+        count_text = " · ".join(
+            f"{name.title()} {counts.get(name, 0)}" for name in ("vinted", "ebay", "etsy") if counts
+        )
+        subtitle = f"Crosslist Import · {count_text} · Last refresh: {refreshed}" if count_text else f"Crosslist Import · Vinted + eBay + Etsy · Last refresh: {refreshed}"
+        self.page_subtitle.config(text=subtitle)
 
         summary = tk.Frame(self.body, bg=COLORS["cream"])
         summary.grid(row=0, column=0, sticky="ew", pady=(0, 12))
-        self._summary(summary, "Online SKUs", str(len(items)), 0)
+        self._summary(summary, "Audit Rows", str(len(items)), 0)
         self._summary(summary, "Found", str(found), 1)
         self._summary(summary, "Missing", str(missing), 2)
         self._summary(summary, "To check", str(unchecked), 3)
@@ -128,8 +134,11 @@ class MainWindow(tk.Tk):
         for item in items:
             markets = item.get("marketplaces", {})
             flags = [m.title() + " duplicate" for m, rows in markets.items() if len(rows) > 1]
-            status = audit.get(item["sku"], "Unchecked").title()
-            self.tree.insert("", "end", iid=item["sku"], values=(
+            if item.get("non_unique_sku"):
+                flags.insert(0, "Non-unique SKU")
+            audit_id = item.get("audit_id") or item["sku"]
+            status = audit.get(audit_id, "Unchecked").title()
+            self.tree.insert("", "end", iid=audit_id, values=(
                 item["sku"],
                 "✓" if markets.get("vinted") else "—",
                 "✓" if markets.get("ebay") else "—",
@@ -138,7 +147,8 @@ class MainWindow(tk.Tk):
                 ", ".join(flags),
             ))
 
-        issues = tk.Label(panel, text=f"Missing SKU listings: {len(state.get('missing_sku', []))}   ·   Duplicate flags: {len(state.get('duplicates', []))}", bg=COLORS["cream_light"], fg=COLORS["muted"], font=("Arial", 9))
+        non_unique_count = sum(1 for item in items if item.get("non_unique_sku"))
+        issues = tk.Label(panel, text=f"Missing SKU listings: {len(state.get('missing_sku', []))}   ·   Duplicate flags: {len(state.get('duplicates', []))}   ·   Non-unique SKU rows: {non_unique_count}", bg=COLORS["cream_light"], fg=COLORS["muted"], font=("Arial", 9))
         issues.grid(row=2, column=0, sticky="w", padx=16, pady=(2, 14))
 
     def _refresh_marketplaces(self) -> None:
@@ -158,8 +168,8 @@ class MainWindow(tk.Tk):
         selected = self.tree.selection() if hasattr(self, "tree") else ()
         if not selected:
             return
-        for sku in selected:
-            self.audit_service.set_physical_status(sku, status)
+        for audit_id in selected:
+            self.audit_service.set_physical_status(audit_id, status)
         self.show_audit()
 
     def _complete_audit(self) -> None:
