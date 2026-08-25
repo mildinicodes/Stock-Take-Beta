@@ -8,19 +8,22 @@ from ..config import PROGRESS_FILE
 
 
 DEFAULT_STATE: dict[str, Any] = {
-    "version": 1,
+    "version": 2,
+    "marketplace_items": [],
+    "marketplace_counts": {},
+    "missing_sku": [],
+    "duplicates": [],
     "audit": {},
     "unlisted_physical_stock": [],
+    "last_refreshed_at": None,
+    "audit_completed_at": None,
+    "completion_summary": None,
     "updated_at": None,
 }
 
 
 class ProgressStore:
-    """Small local JSON store used by the desktop app.
-
-    Marketplace imports will be added later; this store already gives the app a
-    stable place to save physical checks and unlisted-stock discoveries.
-    """
+    """Local JSON store shared by desktop and mobile audit views."""
 
     def __init__(self, path: Path = PROGRESS_FILE) -> None:
         self.path = path
@@ -29,13 +32,11 @@ class ProgressStore:
     def load(self) -> dict[str, Any]:
         if not self.path.exists():
             return deepcopy(DEFAULT_STATE)
-
         try:
             with self.path.open("r", encoding="utf-8") as handle:
                 saved = json.load(handle)
         except (OSError, json.JSONDecodeError):
             return deepcopy(DEFAULT_STATE)
-
         state = deepcopy(DEFAULT_STATE)
         state.update(saved if isinstance(saved, dict) else {})
         return state
