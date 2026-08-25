@@ -4,9 +4,16 @@ import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from ..config import APP_NAME, APP_SUBTITLE, COLORS
+from ..config import APP_NAME, COLORS
 from ..services.audit_service import AuditService
 from ..services.progress_store import ProgressStore
+
+
+MARKET_COLORS = {
+    "vinted": "#09B1BA",
+    "ebay": "#3665F3",
+    "etsy": "#F1641E",
+}
 
 
 class MainWindow(tk.Tk):
@@ -15,9 +22,10 @@ class MainWindow(tk.Tk):
         self.progress_store = progress_store
         self.audit_service = audit_service
         self.mobile_url = mobile_url
-        self.market_filter = "all"
+        self.listed_on: set[str] = set()
+        self.not_listed_on: set[str] = set()
         self.title(f"{APP_NAME} — Massimo's Rail")
-        self.geometry("1320x800")
+        self.geometry("1320x820")
         self.minsize(1060, 700)
         self.configure(bg=COLORS["cream"])
         self._configure_styles()
@@ -74,27 +82,49 @@ class MainWindow(tk.Tk):
     def _button(self, parent: tk.Widget, text: str, command, secondary: bool = False) -> tk.Button:
         return tk.Button(parent, text=text, command=command, bg=COLORS["cream_light"] if secondary else COLORS["green"], fg=COLORS["green"] if secondary else COLORS["white"], activebackground=COLORS["green_mid"], activeforeground=COLORS["white"], bd=1 if secondary else 0, relief="solid" if secondary else "flat", padx=14, pady=9, font=("Arial", 9, "bold"), cursor="hand2")
 
-    def _filter_button(self, parent: tk.Widget, label: str, value: str) -> tk.Button:
-        active = self.market_filter == value
+    def _market_filter_button(self, parent: tk.Widget, market: str, mode: str) -> tk.Button:
+        selected = market in (self.listed_on if mode == "listed" else self.not_listed_on)
+        color = MARKET_COLORS[market]
+        text = market.title() if mode == "listed" else f"✕ {market.title()}"
         return tk.Button(
             parent,
-            text=label,
-            command=lambda: self._set_market_filter(value),
-            bg=COLORS["green"] if active else COLORS["cream_light"],
-            fg=COLORS["white"] if active else COLORS["green"],
-            activebackground=COLORS["green_mid"],
+            text=text,
+            command=lambda: self._toggle_market_filter(market, mode),
+            bg=color if selected else COLORS["cream_light"],
+            fg=COLORS["white"] if selected else color,
+            activebackground=color,
             activeforeground=COLORS["white"],
-            bd=1,
-            relief="solid",
-            padx=13,
+            highlightbackground=color,
+            highlightthickness=1,
+            bd=0,
+            padx=12,
             pady=7,
             font=("Arial", 9, "bold"),
             cursor="hand2",
         )
 
-    def _set_market_filter(self, value: str) -> None:
-        self.market_filter = value
+    def _toggle_market_filter(self, market: str, mode: str) -> None:
+        target = self.listed_on if mode == "listed" else self.not_listed_on
+        opposite = self.not_listed_on if mode == "listed" else self.listed_on
+        if market in target:
+            target.remove(market)
+        else:
+            opposite.discard(market)
+            target.add(market)
         self.show_audit()
+
+    def _clear_market_filters(self) -> None:
+        self.listed_on.clear()
+        self.not_listed_on.clear()
+        self.show_audit()
+
+    def _matches_filters(self, item: dict) -> bool:
+        markets = item.get("marketplaces", {})
+        if any(not markets.get(market) for market in self.listed_on):
+            return False
+        if any(markets.get(market) for market in self.not_listed_on):
+            return False
+        return True
 
     def _summary(self, parent: tk.Widget, title: str, value: str, col: int) -> None:
         card = tk.Frame(parent, bg=COLORS["cream_light"], highlightbackground=COLORS["border"], highlightthickness=1)
@@ -107,6 +137,7 @@ class MainWindow(tk.Tk):
         self._clear()
         state = self.progress_store.load()
         items = state.get("marketplace_items", [])
+        filtered_items = [item for item in items if self._matches_filters(item)]
         audit = state.get("audit", {})
         valid_ids = {item.get("audit_id") or item.get("sku") for item in items}
         found = sum(1 for key, value in audit.items() if key in valid_ids and value == "found")
@@ -115,9 +146,7 @@ class MainWindow(tk.Tk):
         self.page_title.config(text="Shorts Stock Audit")
         refreshed = state.get("last_refreshed_at") or "Never"
         counts = state.get("marketplace_counts", {})
-        count_text = " · ".join(
-            f"{name.title()} {counts.get(name, 0)}" for name in ("vinted", "ebay", "etsy") if counts
-        )
+        count_text = " · ".join(f"{name.title()} {counts.get(name, 0)}" for name in ("vinted", "ebay", "etsy") if counts)
         subtitle = f"Crosslist Import · {count_text} · Last refresh: {refreshed}" if count_text else f"Crosslist Import · Vinted + eBay + Etsy · Last refresh: {refreshed}"
         self.page_subtitle.config(text=subtitle)
 
@@ -131,7 +160,8 @@ class MainWindow(tk.Tk):
         panel = tk.Frame(self.body, bg=COLORS["cream_light"], highlightbackground=COLORS["border"], highlightthickness=1)
         panel.grid(row=1, column=0, sticky="nsew")
         panel.grid_columnconfigure(0, weight=1)
-        panel.grid_rowconfigure(2, weight=1)
+        panel.grid_rowconfigure(3, weight=1)
+
         toolbar = tk.Frame(panel, bg=COLORS["cream_light"])
         toolbar.grid(row=0, column=0, sticky="ew", padx=16, pady=(14, 8))
         self._button(toolbar, "Refresh Marketplace Data", self._refresh_marketplaces).pack(side="left")
@@ -139,19 +169,24 @@ class MainWindow(tk.Tk):
         self._button(toolbar, "Mark Missing", lambda: self._mark_selected("missing"), secondary=True).pack(side="left", padx=(8, 0))
         self._button(toolbar, "Complete Audit", self._complete_audit).pack(side="right")
 
-        filterbar = tk.Frame(panel, bg=COLORS["cream_light"])
-        filterbar.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 10))
-        market_row_counts = {
-            market: sum(1 for item in items if item.get("marketplaces", {}).get(market))
-            for market in ("vinted", "ebay", "etsy")
-        }
-        self._filter_button(filterbar, f"All ({len(items)})", "all").pack(side="left")
+        filters = tk.Frame(panel, bg=COLORS["cream_light"])
+        filters.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 4))
+        listed_row = tk.Frame(filters, bg=COLORS["cream_light"])
+        listed_row.pack(fill="x", pady=2)
+        tk.Label(listed_row, text="Listed on:", width=13, anchor="w", bg=COLORS["cream_light"], fg=COLORS["text"], font=("Arial", 9, "bold")).pack(side="left")
         for market in ("vinted", "ebay", "etsy"):
-            self._filter_button(filterbar, f"{market.title()} ({market_row_counts[market]})", market).pack(side="left", padx=(7, 0))
+            self._market_filter_button(listed_row, market, "listed").pack(side="left", padx=(0, 7))
 
-        filtered_items = items if self.market_filter == "all" else [
-            item for item in items if item.get("marketplaces", {}).get(self.market_filter)
-        ]
+        not_row = tk.Frame(filters, bg=COLORS["cream_light"])
+        not_row.pack(fill="x", pady=2)
+        tk.Label(not_row, text="Not listed on:", width=13, anchor="w", bg=COLORS["cream_light"], fg=COLORS["text"], font=("Arial", 9, "bold")).pack(side="left")
+        for market in ("vinted", "ebay", "etsy"):
+            self._market_filter_button(not_row, market, "not").pack(side="left", padx=(0, 7))
+        self._button(not_row, "Clear filters", self._clear_market_filters, secondary=True).pack(side="left", padx=(8, 0))
+
+        resultbar = tk.Frame(panel, bg=COLORS["cream_light"])
+        resultbar.grid(row=2, column=0, sticky="ew", padx=16, pady=(4, 8))
+        tk.Label(resultbar, text=f"{len(filtered_items)} items shown", bg=COLORS["green_soft"], fg=COLORS["green"], font=("Arial", 9, "bold"), padx=10, pady=5).pack(side="left")
 
         columns = ("sku", "vinted", "ebay", "etsy", "physical", "flags")
         self.tree = ttk.Treeview(panel, columns=columns, show="headings", style="Stock.Treeview")
@@ -163,10 +198,10 @@ class MainWindow(tk.Tk):
         self.tree.column("etsy", width=100, anchor="center")
         self.tree.column("physical", width=120, anchor="center")
         self.tree.column("flags", width=240, anchor="w")
-        self.tree.grid(row=2, column=0, sticky="nsew", padx=16, pady=(0, 8))
+        self.tree.grid(row=3, column=0, sticky="nsew", padx=16, pady=(0, 8))
         scrollbar = ttk.Scrollbar(panel, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.grid(row=2, column=1, sticky="ns", pady=(0, 8))
+        scrollbar.grid(row=3, column=1, sticky="ns", pady=(0, 8))
 
         for item in filtered_items:
             markets = item.get("marketplaces", {})
@@ -175,19 +210,11 @@ class MainWindow(tk.Tk):
                 flags.insert(0, "Non-unique SKU")
             audit_id = item.get("audit_id") or item["sku"]
             status = audit.get(audit_id, "Unchecked").title()
-            self.tree.insert("", "end", iid=audit_id, values=(
-                item["sku"],
-                "✓" if markets.get("vinted") else "—",
-                "✓" if markets.get("ebay") else "—",
-                "✓" if markets.get("etsy") else "—",
-                status,
-                ", ".join(flags),
-            ))
+            self.tree.insert("", "end", iid=audit_id, values=(item["sku"], "✓" if markets.get("vinted") else "—", "✓" if markets.get("ebay") else "—", "✓" if markets.get("etsy") else "—", status, ", ".join(flags)))
 
         non_unique_count = sum(1 for item in items if item.get("non_unique_sku"))
-        filter_note = f"   ·   Showing: {self.market_filter.title()} ({len(filtered_items)})"
-        issues = tk.Label(panel, text=f"Missing SKU listings: {len(state.get('missing_sku', []))}   ·   Duplicate flags: {len(state.get('duplicates', []))}   ·   Non-unique SKU rows: {non_unique_count}{filter_note}", bg=COLORS["cream_light"], fg=COLORS["muted"], font=("Arial", 9))
-        issues.grid(row=3, column=0, sticky="w", padx=16, pady=(2, 14))
+        issues = tk.Label(panel, text=f"Missing SKU listings: {len(state.get('missing_sku', []))}   ·   Duplicate flags: {len(state.get('duplicates', []))}   ·   Non-unique SKU rows: {non_unique_count}", bg=COLORS["cream_light"], fg=COLORS["muted"], font=("Arial", 9))
+        issues.grid(row=4, column=0, sticky="w", padx=16, pady=(2, 14))
 
     def _refresh_marketplaces(self) -> None:
         self.status_label.config(text="Refreshing Crosslist…")
