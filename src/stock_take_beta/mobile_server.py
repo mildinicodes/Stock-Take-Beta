@@ -23,7 +23,7 @@ header{position:sticky;top:0;z-index:5;background:var(--green);color:white;paddi
 .brand{font-size:12px;letter-spacing:1.7px;opacity:.75}.title{font-size:22px;font-weight:800;margin-top:2px}.meta{font-size:12px;opacity:.75;margin-top:4px}
 .tabs{display:flex;gap:8px;padding:12px 12px 4px}.tabs a{flex:1;text-align:center;padding:11px;border-radius:10px;text-decoration:none;font-weight:700;color:var(--green);background:var(--light);border:1px solid var(--border)}
 .summary{padding:8px 12px 2px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.pill{background:var(--light);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center}.pill strong{display:block;font-size:20px}.pill span{font-size:11px;color:var(--muted)}
-.list{padding:10px 12px 90px}.card{background:var(--light);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px}.top{display:flex;gap:10px;align-items:center}.thumb{width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--soft)}.sku{font-size:21px;font-weight:850}.title2{font-size:12px;color:var(--muted);line-height:1.25;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.markets{margin:10px 0 9px;display:flex;gap:6px;flex-wrap:wrap}.market{font-size:11px;font-weight:750;border-radius:999px;padding:5px 8px;background:#eee;color:#777}.market.on{background:var(--soft);color:var(--green)}.market.dup{background:#f3d8ce;color:#7a2f1c}
+.list{padding:10px 12px 90px}.card{background:var(--light);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px}.top{display:flex;gap:10px;align-items:center}.thumb{width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--soft)}.sku{font-size:21px;font-weight:850}.title2{font-size:12px;color:var(--muted);line-height:1.25;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.flag{display:inline-block;margin-top:5px;font-size:10px;font-weight:800;border-radius:999px;padding:4px 7px;background:#f3d8ce;color:#7a2f1c}.markets{margin:10px 0 9px;display:flex;gap:6px;flex-wrap:wrap}.market{font-size:11px;font-weight:750;border-radius:999px;padding:5px 8px;background:#eee;color:#777}.market.on{background:var(--soft);color:var(--green)}.market.dup{background:#f3d8ce;color:#7a2f1c}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.actions button{border:0;border-radius:10px;padding:12px;font-size:15px;font-weight:800}.found{background:var(--green);color:#fff}.missing{background:#ead7d1;color:#6e2c20}.active{outline:3px solid #91a99a}.unchecked{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
 .add{display:flex;gap:8px;margin:10px 12px}.add input{flex:1;border:1px solid var(--border);border-radius:10px;padding:13px;font-size:16px;background:white}.add button,.complete{border:0;border-radius:10px;background:var(--green);color:white;padding:12px 14px;font-weight:800}.unlisted{padding:4px 12px 90px}.urow{display:flex;align-items:center;justify-content:space-between;background:var(--light);border:1px solid var(--border);padding:12px;margin-bottom:8px;border-radius:10px;font-weight:800}.urow button{border:0;background:transparent;font-size:20px;color:#8c4b3b}.complete-wrap{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--cream) 25%)}.complete{width:100%;font-size:16px}
 </style>
@@ -35,13 +35,14 @@ header{position:sticky;top:0;z-index:5;background:var(--green);color:white;paddi
 <div class="summary"><div class="pill"><strong>{{ found }}</strong><span>Found</span></div><div class="pill"><strong>{{ missing }}</strong><span>Missing</span></div><div class="pill"><strong>{{ unchecked }}</strong><span>To check</span></div></div>
 <div class="list">
 {% for item in items %}
+{% set aid = item.audit_id or item.sku %}
 <div class="card">
-<div class="top">{% if item.cover_image %}<img class="thumb" src="{{ item.cover_image }}">{% else %}<div class="thumb"></div>{% endif %}<div><div class="sku">{{ item.sku }}</div><div class="title2">{{ item.title }}</div></div></div>
+<div class="top">{% if item.cover_image %}<img class="thumb" src="{{ item.cover_image }}">{% else %}<div class="thumb"></div>{% endif %}<div><div class="sku">{{ item.sku }}</div><div class="title2">{{ item.title }}</div>{% if item.non_unique_sku %}<span class="flag">Non-unique SKU</span>{% endif %}</div></div>
 <div class="markets">
 {% for m in ['vinted','ebay','etsy'] %}<span class="market {% if item.marketplaces.get(m) %}on{% endif %} {% if item.marketplaces.get(m)|length > 1 %}dup{% endif %}">{{ m|title }}{% if item.marketplaces.get(m)|length > 1 %} ×{{ item.marketplaces.get(m)|length }}{% endif %}</span>{% endfor %}
 </div>
-<form class="actions" method="post" action="/status/{{ item.sku }}"><button name="status" value="found" class="found {% if audit.get(item.sku)=='found' %}active{% endif %}">✓ Found</button><button name="status" value="missing" class="missing {% if audit.get(item.sku)=='missing' %}active{% endif %}">Missing</button></form>
-{% if not audit.get(item.sku) %}<div class="unchecked">Not checked yet</div>{% endif %}
+<form class="actions" method="post" action="/status"><input type="hidden" name="audit_id" value="{{ aid }}"><button name="status" value="found" class="found {% if audit.get(aid)=='found' %}active{% endif %}">✓ Found</button><button name="status" value="missing" class="missing {% if audit.get(aid)=='missing' %}active{% endif %}">Missing</button></form>
+{% if not audit.get(aid) %}<div class="unchecked">Not checked yet</div>{% endif %}
 </div>
 {% endfor %}
 </div><div class="complete-wrap"><form method="post" action="/complete"><button class="complete">Complete Audit</button></form></div>
@@ -71,8 +72,9 @@ def create_mobile_app(service: AuditService) -> Flask:
         state = service.store.load()
         items = state.get("marketplace_items", [])
         audit = state.get("audit", {})
-        found = sum(1 for value in audit.values() if value == "found")
-        missing = sum(1 for value in audit.values() if value == "missing")
+        valid_ids = {item.get("audit_id") or item.get("sku") for item in items}
+        found = sum(1 for key, value in audit.items() if key in valid_ids and value == "found")
+        missing = sum(1 for key, value in audit.items() if key in valid_ids and value == "missing")
         unchecked = max(0, len(items) - found - missing)
         refreshed = state.get("last_refreshed_at") or "Not refreshed yet"
         return render_template_string(
@@ -84,16 +86,18 @@ def create_mobile_app(service: AuditService) -> Flask:
             missing=missing,
             unchecked=unchecked,
             unlisted=state.get("unlisted_physical_stock", []),
-            meta=f"{len(items)} SKUs · last refresh {escape(str(refreshed))}",
+            meta=f"{len(items)} audit rows · last refresh {escape(str(refreshed))}",
         )
 
     @app.get("/")
     def audit():
         return view_state("audit")
 
-    @app.post("/status/<sku>")
-    def set_status(sku: str):
-        service.set_physical_status(sku, request.form.get("status", "unchecked"))
+    @app.post("/status")
+    def set_status():
+        audit_id = request.form.get("audit_id", "").strip()
+        if audit_id:
+            service.set_physical_status(audit_id, request.form.get("status", "unchecked"))
         return redirect(url_for("audit"))
 
     @app.get("/unlisted")
