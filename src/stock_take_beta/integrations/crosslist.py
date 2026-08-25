@@ -83,6 +83,9 @@ class CrosslistBrowserClient:
             value = payload.get(key)
             if isinstance(value, list):
                 return len(value)
+        for value in payload.values():
+            if isinstance(value, list) and value and isinstance(value[0], dict):
+                return len(value)
         return 0
 
     @staticmethod
@@ -97,7 +100,117 @@ class CrosslistBrowserClient:
         marketplace = marketplace.lower()
         if marketplace not in IMPORT_URLS:
             raise ValueError(f"Unsupported marketplace: {marketplace}")
+        if marketplace == "vinted":
+            return self._fetch_vinted_inventory(timeout_seconds=timeout_seconds)
+        return self._fetch_generic_marketplace(marketplace, timeout_seconds=timeout_seconds)
 
+    def _fetch_vinted_inventory(self, timeout_seconds: int = 60) -> dict[str, Any]:
+        """Use the proven Inventory Beta capture pattern for Vinted."""
+        url = IMPORT_URLS["vinted"]
+        captured: dict[str, Any] = {}
+        request_template: dict[str, Any] = {}
+        self._report("Opening Crosslist Vinted Import...")
+
+        if not _devtools_is_live():
+            _launch_debug_chrome(self.profile_dir, url)
+        if not _devtools_is_live():
+            raise CrosslistConnectionError("Chrome opened but the DevTools connection is unavailable.")
+
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.connect_over_cdp(
+                f"http://127.0.0.1:{DEBUG_PORT}", timeout=10_000
+            )
+            contexts = browser.contexts
+            context = contexts[0] if contexts else None
+            if context is None:
+                raise CrosslistConnectionError("Chrome opened but no browser context was available.")
+
+            page = context.pages[0] if context.pages else context.new_page()
+
+            def capture_response(response: Any) -> None:
+                if GET_IMPORT_SHIMS_TOKEN not in response.url:
+                    return
+                if response.request.method.upper() != "POST" or not response.ok:
+                    return
+                try:
+                    payload = response.json()
+                except Exception:
+                    return
+                if not isinstance(payload, dict):
+                    return
+
+                listing_count = self._listing_count(payload)
+                # Keep the largest Vinted response seen. Crosslist can make more
+                # than one Import-shim request while the page is initialising.
+                previous = captured.get("payload")
+                if not isinstance(previous, dict) or listing_count >= self._listing_count(previous):
+                    captured["payload"] = payload
+                    request_template["url"] = response.url
+                    request_template["body"] = response.request.post_data or ""
+                    request_template["content_type"] = response.request.headers.get(
+                        "content-type", "application/json"
+                    )
+                    self._report(f"Captured Vinted response: {listing_count:,} visible listings.")
+
+            # The working Inventory Beta implementation listened across the
+            # whole authenticated Chrome context, not only one tab.
+            for existing_page in context.pages:
+                existing_page.on("response", capture_response)
+            context.on("page", lambda new_page: new_page.on("response", capture_response))
+
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+            except Exception as exc:
+                self._report(f"Vinted navigation warning: {exc}")
+
+            deadline = time.monotonic() + timeout_seconds
+            while "payload" not in captured and time.monotonic() < deadline:
+                page.wait_for_timeout(250)
+
+            if "payload" not in captured:
+                raise CrosslistConnectionError(
+                    "No Vinted inventory response was captured from Crosslist. "
+                    "Make sure the Vinted Import page is showing listings in the dedicated Chrome window."
+                )
+
+            page_payload = captured["payload"]
+            expected = self._record_count(page_payload)
+            visible = self._listing_count(page_payload)
+            self._report(f"Vinted page response: {visible:,} listings (expected {expected or 'unknown'}).")
+
+            if expected and visible >= expected:
+                return page_payload
+
+            request_url = request_template.get("url")
+            if not request_url:
+                return page_payload
+
+            full_url = str(request_url).replace("fetchAll=false", "fetchAll=true")
+            try:
+                full_payload = page.evaluate(
+                    """async ({url, body, contentType}) => {
+                        const options = {method:'POST', credentials:'include', headers:{'Content-Type':contentType}};
+                        if (body) options.body = body;
+                        const response = await fetch(url, options);
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        return await response.json();
+                    }""",
+                    {
+                        "url": full_url,
+                        "body": request_template.get("body", ""),
+                        "contentType": request_template.get("content_type", "application/json"),
+                    },
+                )
+            except Exception as exc:
+                self._report(f"Full Vinted replay failed; using page response: {exc}")
+                return page_payload
+
+            if isinstance(full_payload, dict):
+                self._report(f"Full Vinted catalogue received: {self._listing_count(full_payload):,} listings.")
+                return full_payload
+            return page_payload
+
+    def _fetch_generic_marketplace(self, marketplace: str, timeout_seconds: int = 60) -> dict[str, Any]:
         url = IMPORT_URLS[marketplace]
         self._report(f"Opening Crosslist {marketplace.title()} Import...")
         if not _devtools_is_live():
@@ -138,6 +251,7 @@ class CrosslistBrowserClient:
             page_payload = captured["payload"]
             expected = self._record_count(page_payload)
             visible = self._listing_count(page_payload)
+            self._report(f"{marketplace.title()} page response: {visible:,} listings.")
             if expected and visible >= expected:
                 return page_payload
 
@@ -163,7 +277,10 @@ class CrosslistBrowserClient:
                 )
             except Exception:
                 return page_payload
-            return full_payload if isinstance(full_payload, dict) else page_payload
+            if isinstance(full_payload, dict):
+                self._report(f"Full {marketplace.title()} catalogue received: {self._listing_count(full_payload):,} listings.")
+                return full_payload
+            return page_payload
 
 
 def valid_human_sku(value: Any) -> str | None:
