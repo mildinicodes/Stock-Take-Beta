@@ -1,50 +1,47 @@
 # Stock Take Beta
 
-Standalone Massimo's Rail desktop stock-audit tool for shorts.
+Standalone Massimo's Rail shorts stock-audit tool.
 
-## Current phase
+## Current build
 
-This first commit intentionally contains only the clean project structure, local progress storage, and basic cream/dark-green desktop app shell. It does **not** connect to or modify Vinted, Etsy, eBay, Inventory System Beta, or the relister.
+The app now reads Crosslist's Import pages for Vinted, eBay and Etsy, keeps only listings with `Shorts` in the title, matches listings by SKU, and displays the combined marketplace picture in SKU order.
 
-## Planned workflow
+It is read-only with respect to marketplaces. It does not modify Inventory System Beta, the relister, Vinted, eBay or Etsy.
 
-1. Import listing data from Vinted, Etsy and eBay.
-2. Normalize and match listings by SKU.
-3. Display all online SKUs in SKU order.
-4. Tick each SKU as physical stock is checked.
-5. Save audit progress locally after every change.
-6. Record physical stock found that has no online listing in a separate section.
+### Audit rules
 
-## Run
+- SKU is the sole physical-item identity.
+- All SKU formats are accepted.
+- Crosslist-generated UUID values on eBay are rejected and the genuine seller/custom SKU is recovered where available.
+- Missing SKUs are flagged.
+- Duplicate SKUs on the same marketplace are flagged.
+- Physical status is `Found`, `Missing`, or unchecked.
+- Physical stock not represented online is stored as SKU-only entries.
+- Marketplace refreshes do not erase physical audit progress.
+- A formal Complete Audit action saves a summary.
 
-Requires Python 3.11+.
+## Desktop + phone
+
+Launching the app starts the Massimo's Rail desktop interface and a small local mobile web view. The desktop sidebar shows the phone URL. Open it on a phone connected to the same Wi-Fi as the laptop.
+
+The phone view uses compact cards with SKU, title, marketplace presence and large Found/Missing buttons.
+
+## First setup
+
+Requires Python 3.11+, Google Chrome, and a Crosslist account.
 
 ```bash
+pip install -r requirements.txt
 python app.py
 ```
 
-## Structure
+On the first marketplace refresh, a dedicated Chrome profile opens. Log into Crosslist in that Chrome window if required. The local session is reused on later refreshes. No credentials or browser-session data are committed to GitHub.
 
-```text
-Stock-Take-Beta/
-├── app.py
-├── data/
-│   └── .gitkeep
-├── src/
-│   └── stock_take_beta/
-│       ├── app.py
-│       ├── config.py
-│       ├── data/
-│       │   └── __init__.py
-│       ├── services/
-│       │   ├── __init__.py
-│       │   └── progress_store.py
-│       └── ui/
-│           ├── __init__.py
-│           └── main_window.py
-├── tests/
-│   └── test_progress_store.py
-├── .gitignore
-├── README.md
-└── requirements.txt
-```
+## Normal use
+
+1. Launch with `python app.py`.
+2. Click **Refresh Marketplace Data**.
+3. Let the app read the Vinted, eBay and Etsy Crosslist Import pages.
+4. Check shorts physically from desktop or phone.
+5. Add physical-only SKUs under **Unlisted Physical Stock**.
+6. Use **Complete Audit** when the stock take is finished.
