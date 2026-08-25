@@ -15,10 +15,16 @@ class MarketplaceListing:
 
 @dataclass(slots=True)
 class AuditItem:
+    # audit_id is the unique internal identity used for physical stock status.
+    # For a normal unique SKU it is identical to the SKU. For an ambiguous
+    # placeholder such as "JOR", every marketplace listing gets its own id so
+    # those listings never collapse into one fake physical item.
+    audit_id: str
     sku: str
     title: str
     cover_image: str | None = None
     marketplaces: dict[str, list[MarketplaceListing]] = field(default_factory=dict)
+    non_unique_sku: bool = False
 
     @property
     def duplicate_marketplaces(self) -> list[str]:
