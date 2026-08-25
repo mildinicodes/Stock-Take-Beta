@@ -13,10 +13,6 @@ _PREFERRED_EBAY_SKU_KEYS = {
     "itemsku", "listingsku", "originalsku", "stockkeepingunit",
 }
 
-# Crosslist's Vinted import rows have changed shape over time. The real seller
-# SKU can be exposed under sku, a nested product/listing record, or a custom
-# field. We deliberately search SKU-labelled fields instead of assuming the
-# top-level `sku` is always present.
 _PREFERRED_VINTED_SKU_KEYS = {
     "sku", "sellersku", "merchantsku", "inventorysku", "itemsku",
     "listingsku", "originalsku", "stockkeepingunit", "customsku",
@@ -74,11 +70,9 @@ def _extract_ebay_sku(raw: dict[str, Any]) -> str | None:
 
 
 def _extract_vinted_sku(raw: dict[str, Any]) -> str | None:
-    # Prefer the normal top-level field when Crosslist supplies it.
     direct = valid_human_sku(raw.get("sku"))
     if direct:
         return direct
-
     ranked = _find_sku_candidates(raw, _PREFERRED_VINTED_SKU_KEYS)
     return ranked[0][1] if ranked else None
 
@@ -95,6 +89,22 @@ def _natural_sku_key(sku: str) -> tuple:
     import re
     parts = re.split(r"(\d+)", sku.upper())
     return tuple(int(part) if part.isdigit() else part for part in parts)
+
+
+def _is_non_unique_sku(sku: str) -> bool:
+    """Return True for placeholder-style SKUs such as JOR.
+
+    Real stock codes in this audit contain a numeric item identifier (JOR001,
+    DCK466, etc.). A letters-only value can still be displayed, but it is not
+    safe to use as a physical identity because many separate listings may share
+    it. Those rows are therefore kept separate rather than merged.
+    """
+    return not any(char.isdigit() for char in sku)
+
+
+def _listing_audit_id(row: MarketplaceListing) -> str:
+    identity = row.listing_id or row.url or row.title
+    return f"{row.sku}__{row.marketplace}__{identity}"
 
 
 class MarketplaceImportService:
@@ -151,17 +161,38 @@ class MarketplaceImportService:
 
         items: list[AuditItem] = []
         duplicate_flags: list[dict[str, Any]] = []
+
         for sku in sorted(grouped, key=_natural_sku_key):
             rows = grouped[sku]
+
+            if _is_non_unique_sku(sku):
+                # A placeholder such as JOR cannot tell us which physical pair
+                # an online listing belongs to. Keep every listing visible as a
+                # separate audit row, even when several share the same market.
+                for row in sorted(rows, key=lambda value: (value.marketplace, value.listing_id, value.title)):
+                    items.append(
+                        AuditItem(
+                            audit_id=_listing_audit_id(row),
+                            sku=sku,
+                            title=row.title,
+                            cover_image=row.cover_image,
+                            marketplaces={row.marketplace: [row]},
+                            non_unique_sku=True,
+                        )
+                    )
+                continue
+
             by_market: dict[str, list[MarketplaceListing]] = defaultdict(list)
             for row in rows:
                 by_market[row.marketplace].append(row)
             first = rows[0]
             item = AuditItem(
+                audit_id=sku,
                 sku=sku,
                 title=first.title,
                 cover_image=next((row.cover_image for row in rows if row.cover_image), None),
                 marketplaces=dict(by_market),
+                non_unique_sku=False,
             )
             items.append(item)
             for marketplace in item.duplicate_marketplaces:
