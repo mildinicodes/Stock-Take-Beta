@@ -1,5 +1,5 @@
 from .config import CROSSLIST_PROFILE_DIR
-from .mobile_server import start_mobile_server
+from .mobile_server_v2 import start_mobile_server
 from .services.audit_service import AuditService
 from .services.progress_store import ProgressStore
 from .ui.main_window import MainWindow
