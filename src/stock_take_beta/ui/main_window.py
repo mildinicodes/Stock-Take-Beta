@@ -86,22 +86,7 @@ class MainWindow(tk.Tk):
         selected = market in (self.listed_on if mode == "listed" else self.not_listed_on)
         color = MARKET_COLORS[market]
         text = market.title() if mode == "listed" else f"✕ {market.title()}"
-        return tk.Button(
-            parent,
-            text=text,
-            command=lambda: self._toggle_market_filter(market, mode),
-            bg=color if selected else COLORS["cream_light"],
-            fg=COLORS["white"] if selected else color,
-            activebackground=color,
-            activeforeground=COLORS["white"],
-            highlightbackground=color,
-            highlightthickness=1,
-            bd=0,
-            padx=12,
-            pady=7,
-            font=("Arial", 9, "bold"),
-            cursor="hand2",
-        )
+        return tk.Button(parent, text=text, command=lambda: self._toggle_market_filter(market, mode), bg=color if selected else COLORS["cream_light"], fg=COLORS["white"] if selected else color, activebackground=color, activeforeground=COLORS["white"], highlightbackground=color, highlightthickness=1, bd=0, padx=12, pady=7, font=("Arial", 9, "bold"), cursor="hand2")
 
     def _toggle_market_filter(self, market: str, mode: str) -> None:
         target = self.listed_on if mode == "listed" else self.not_listed_on
@@ -120,11 +105,7 @@ class MainWindow(tk.Tk):
 
     def _matches_filters(self, item: dict) -> bool:
         markets = item.get("marketplaces", {})
-        if any(not markets.get(market) for market in self.listed_on):
-            return False
-        if any(markets.get(market) for market in self.not_listed_on):
-            return False
-        return True
+        return not any(not markets.get(m) for m in self.listed_on) and not any(markets.get(m) for m in self.not_listed_on)
 
     def _summary(self, parent: tk.Widget, title: str, value: str, col: int) -> None:
         card = tk.Frame(parent, bg=COLORS["cream_light"], highlightbackground=COLORS["border"], highlightthickness=1)
@@ -147,8 +128,7 @@ class MainWindow(tk.Tk):
         refreshed = state.get("last_refreshed_at") or "Never"
         counts = state.get("marketplace_counts", {})
         count_text = " · ".join(f"{name.title()} {counts.get(name, 0)}" for name in ("vinted", "ebay", "etsy") if counts)
-        subtitle = f"Crosslist Import · {count_text} · Last refresh: {refreshed}" if count_text else f"Crosslist Import · Vinted + eBay + Etsy · Last refresh: {refreshed}"
-        self.page_subtitle.config(text=subtitle)
+        self.page_subtitle.config(text=f"Crosslist Import · {count_text} · Last refresh: {refreshed}" if count_text else f"Crosslist Import · Vinted + eBay + Etsy · Last refresh: {refreshed}")
 
         summary = tk.Frame(self.body, bg=COLORS["cream"])
         summary.grid(row=0, column=0, sticky="ew", pady=(0, 12))
@@ -171,14 +151,11 @@ class MainWindow(tk.Tk):
 
         filters = tk.Frame(panel, bg=COLORS["cream_light"])
         filters.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 4))
-        listed_row = tk.Frame(filters, bg=COLORS["cream_light"])
-        listed_row.pack(fill="x", pady=2)
+        listed_row = tk.Frame(filters, bg=COLORS["cream_light"]); listed_row.pack(fill="x", pady=2)
         tk.Label(listed_row, text="Listed on:", width=13, anchor="w", bg=COLORS["cream_light"], fg=COLORS["text"], font=("Arial", 9, "bold")).pack(side="left")
         for market in ("vinted", "ebay", "etsy"):
             self._market_filter_button(listed_row, market, "listed").pack(side="left", padx=(0, 7))
-
-        not_row = tk.Frame(filters, bg=COLORS["cream_light"])
-        not_row.pack(fill="x", pady=2)
+        not_row = tk.Frame(filters, bg=COLORS["cream_light"]); not_row.pack(fill="x", pady=2)
         tk.Label(not_row, text="Not listed on:", width=13, anchor="w", bg=COLORS["cream_light"], fg=COLORS["text"], font=("Arial", 9, "bold")).pack(side="left")
         for market in ("vinted", "ebay", "etsy"):
             self._market_filter_button(not_row, market, "not").pack(side="left", padx=(0, 7))
@@ -187,34 +164,36 @@ class MainWindow(tk.Tk):
         resultbar = tk.Frame(panel, bg=COLORS["cream_light"])
         resultbar.grid(row=2, column=0, sticky="ew", padx=16, pady=(4, 8))
         tk.Label(resultbar, text=f"{len(filtered_items)} items shown", bg=COLORS["green_soft"], fg=COLORS["green"], font=("Arial", 9, "bold"), padx=10, pady=5).pack(side="left")
+        self.quick_unlisted_entry = tk.Entry(resultbar, font=("Arial", 10), width=18)
+        self.quick_unlisted_entry.pack(side="left", padx=(14, 6))
+        self.quick_unlisted_entry.bind("<Return>", lambda _e: self._quick_add_unlisted())
+        self._button(resultbar, "+ Add unlisted SKU", self._quick_add_unlisted, secondary=True).pack(side="left")
+        last_checked = state.get("last_checked_audit_id")
+        last_item = next((i for i in items if (i.get("audit_id") or i.get("sku")) == last_checked), None)
+        last_label = f"Last checked: {last_item.get('sku')}" if last_item else "Last checked"
+        last_btn = self._button(resultbar, last_label, self._jump_last_checked, secondary=True)
+        last_btn.pack(side="right")
+        if not last_item:
+            last_btn.config(state="disabled")
 
         columns = ("sku", "vinted", "ebay", "etsy", "physical", "flags")
         self.tree = ttk.Treeview(panel, columns=columns, show="headings", style="Stock.Treeview")
         for key, title in (("sku", "SKU"), ("vinted", "Vinted"), ("ebay", "eBay"), ("etsy", "Etsy"), ("physical", "Physical"), ("flags", "Flags")):
             self.tree.heading(key, text=title)
-        self.tree.column("sku", width=150, anchor="w")
-        self.tree.column("vinted", width=100, anchor="center")
-        self.tree.column("ebay", width=100, anchor="center")
-        self.tree.column("etsy", width=100, anchor="center")
-        self.tree.column("physical", width=120, anchor="center")
-        self.tree.column("flags", width=240, anchor="w")
+        self.tree.column("sku", width=150, anchor="w"); self.tree.column("vinted", width=100, anchor="center"); self.tree.column("ebay", width=100, anchor="center"); self.tree.column("etsy", width=100, anchor="center"); self.tree.column("physical", width=120, anchor="center"); self.tree.column("flags", width=240, anchor="w")
         self.tree.grid(row=3, column=0, sticky="nsew", padx=16, pady=(0, 8))
-        scrollbar = ttk.Scrollbar(panel, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.grid(row=3, column=1, sticky="ns", pady=(0, 8))
+        scrollbar = ttk.Scrollbar(panel, orient="vertical", command=self.tree.yview); self.tree.configure(yscrollcommand=scrollbar.set); scrollbar.grid(row=3, column=1, sticky="ns", pady=(0, 8))
 
         for item in filtered_items:
             markets = item.get("marketplaces", {})
             flags = [m.title() + " duplicate" for m, rows in markets.items() if len(rows) > 1]
-            if item.get("non_unique_sku"):
-                flags.insert(0, "Non-unique SKU")
+            if item.get("non_unique_sku"): flags.insert(0, "Non-unique SKU")
             audit_id = item.get("audit_id") or item["sku"]
             status = audit.get(audit_id, "Unchecked").title()
             self.tree.insert("", "end", iid=audit_id, values=(item["sku"], "✓" if markets.get("vinted") else "—", "✓" if markets.get("ebay") else "—", "✓" if markets.get("etsy") else "—", status, ", ".join(flags)))
 
         non_unique_count = sum(1 for item in items if item.get("non_unique_sku"))
-        issues = tk.Label(panel, text=f"Missing SKU listings: {len(state.get('missing_sku', []))}   ·   Duplicate flags: {len(state.get('duplicates', []))}   ·   Non-unique SKU rows: {non_unique_count}", bg=COLORS["cream_light"], fg=COLORS["muted"], font=("Arial", 9))
-        issues.grid(row=4, column=0, sticky="w", padx=16, pady=(2, 14))
+        tk.Label(panel, text=f"Missing SKU listings: {len(state.get('missing_sku', []))}   ·   Duplicate flags: {len(state.get('duplicates', []))}   ·   Non-unique SKU rows: {non_unique_count}", bg=COLORS["cream_light"], fg=COLORS["muted"], font=("Arial", 9)).grid(row=4, column=0, sticky="w", padx=16, pady=(2, 14))
 
     def _refresh_marketplaces(self) -> None:
         self.status_label.config(text="Refreshing Crosslist…")
@@ -223,55 +202,55 @@ class MainWindow(tk.Tk):
                 self.audit_service.refresh_marketplaces()
             except Exception as exc:
                 self.after(0, lambda: messagebox.showerror("Crosslist refresh failed", str(exc)))
-                self.after(0, lambda: self.status_label.config(text="Refresh failed"))
-                return
-            self.after(0, lambda: self.status_label.config(text="Refresh complete"))
-            self.after(0, self.show_audit)
+                self.after(0, lambda: self.status_label.config(text="Refresh failed")); return
+            self.after(0, lambda: self.status_label.config(text="Refresh complete")); self.after(0, self.show_audit)
         threading.Thread(target=worker, daemon=True).start()
 
     def _mark_selected(self, status: str) -> None:
         selected = self.tree.selection() if hasattr(self, "tree") else ()
-        if not selected:
-            return
+        if not selected: return
         for audit_id in selected:
             self.audit_service.set_physical_status(audit_id, status)
-        self.show_audit()
+        self.show_audit(); self.after(20, self._jump_last_checked)
+
+    def _jump_last_checked(self) -> None:
+        state = self.progress_store.load()
+        audit_id = state.get("last_checked_audit_id")
+        if not audit_id or not hasattr(self, "tree"): return
+        if self.tree.exists(audit_id):
+            self.tree.selection_set(audit_id); self.tree.focus(audit_id); self.tree.see(audit_id)
+            return
+        item = next((i for i in state.get("marketplace_items", []) if (i.get("audit_id") or i.get("sku")) == audit_id), None)
+        if item:
+            self.listed_on.clear(); self.not_listed_on.clear(); self.show_audit(); self.after(20, self._jump_last_checked)
+
+    def _quick_add_unlisted(self) -> None:
+        sku = self.quick_unlisted_entry.get().strip() if hasattr(self, "quick_unlisted_entry") else ""
+        if not sku: return
+        self.audit_service.add_unlisted_sku(sku)
+        self.quick_unlisted_entry.delete(0, "end")
+        self.status_label.config(text=f"Added unlisted: {sku.upper()}")
+        self.quick_unlisted_entry.focus_set()
 
     def _complete_audit(self) -> None:
-        state = self.audit_service.complete_audit()
-        summary = state.get("completion_summary", {})
+        state = self.audit_service.complete_audit(); summary = state.get("completion_summary", {})
         messagebox.showinfo("Audit complete", f"Found: {summary.get('found', 0)}\nMissing: {summary.get('missing', 0)}\nUnchecked: {summary.get('unchecked', 0)}\nUnlisted physical: {summary.get('unlisted_physical', 0)}")
         self.show_audit()
 
     def show_unlisted(self) -> None:
-        self._clear()
-        self.page_title.config(text="Unlisted Physical Stock")
-        self.page_subtitle.config(text="Physical shorts found during stock take that are not represented online.")
-        panel = tk.Frame(self.body, bg=COLORS["cream_light"], highlightbackground=COLORS["border"], highlightthickness=1)
-        panel.grid(row=0, column=0, sticky="nsew")
-        self.body.grid_rowconfigure(0, weight=1)
-        panel.grid_columnconfigure(0, weight=1)
-        panel.grid_rowconfigure(1, weight=1)
-        entrybar = tk.Frame(panel, bg=COLORS["cream_light"])
-        entrybar.grid(row=0, column=0, sticky="ew", padx=18, pady=16)
-        self.unlisted_entry = tk.Entry(entrybar, font=("Arial", 12), width=24)
-        self.unlisted_entry.pack(side="left")
-        self._button(entrybar, "Add SKU", self._add_unlisted).pack(side="left", padx=8)
-        self._button(entrybar, "Remove Selected", self._remove_unlisted, secondary=True).pack(side="left")
-        self.unlisted_tree = ttk.Treeview(panel, columns=("sku",), show="headings", style="Stock.Treeview")
-        self.unlisted_tree.heading("sku", text="SKU")
-        self.unlisted_tree.column("sku", width=300, anchor="w")
-        self.unlisted_tree.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 18))
-        for sku in self.progress_store.load().get("unlisted_physical_stock", []):
-            self.unlisted_tree.insert("", "end", iid=sku, values=(sku,))
+        self._clear(); self.page_title.config(text="Unlisted Physical Stock"); self.page_subtitle.config(text="Physical shorts found during stock take that are not represented online.")
+        panel = tk.Frame(self.body, bg=COLORS["cream_light"], highlightbackground=COLORS["border"], highlightthickness=1); panel.grid(row=0, column=0, sticky="nsew")
+        self.body.grid_rowconfigure(0, weight=1); panel.grid_columnconfigure(0, weight=1); panel.grid_rowconfigure(1, weight=1)
+        entrybar = tk.Frame(panel, bg=COLORS["cream_light"]); entrybar.grid(row=0, column=0, sticky="ew", padx=18, pady=16)
+        self.unlisted_entry = tk.Entry(entrybar, font=("Arial", 12), width=24); self.unlisted_entry.pack(side="left"); self.unlisted_entry.bind("<Return>", lambda _e: self._add_unlisted())
+        self._button(entrybar, "Add SKU", self._add_unlisted).pack(side="left", padx=8); self._button(entrybar, "Remove Selected", self._remove_unlisted, secondary=True).pack(side="left")
+        self.unlisted_tree = ttk.Treeview(panel, columns=("sku",), show="headings", style="Stock.Treeview"); self.unlisted_tree.heading("sku", text="SKU"); self.unlisted_tree.column("sku", width=300, anchor="w"); self.unlisted_tree.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 18))
+        for sku in self.progress_store.load().get("unlisted_physical_stock", []): self.unlisted_tree.insert("", "end", iid=sku, values=(sku,))
 
     def _add_unlisted(self) -> None:
         sku = self.unlisted_entry.get().strip()
-        if sku:
-            self.audit_service.add_unlisted_sku(sku)
-            self.show_unlisted()
+        if sku: self.audit_service.add_unlisted_sku(sku); self.show_unlisted()
 
     def _remove_unlisted(self) -> None:
-        for sku in self.unlisted_tree.selection():
-            self.audit_service.remove_unlisted_sku(sku)
+        for sku in self.unlisted_tree.selection(): self.audit_service.remove_unlisted_sku(sku)
         self.show_unlisted()
