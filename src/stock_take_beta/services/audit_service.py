@@ -71,6 +71,8 @@ class AuditService:
             audit.pop(audit_id, None)
         else:
             audit[audit_id] = status
+            state["last_checked_audit_id"] = audit_id
+            state["last_checked_at"] = datetime.now(timezone.utc).isoformat()
         self.store.save(state)
         return state
 
@@ -83,6 +85,7 @@ class AuditService:
         if sku not in items:
             items.append(sku)
             items.sort()
+        state["last_unlisted_sku"] = sku
         self.store.save(state)
         return state
 
