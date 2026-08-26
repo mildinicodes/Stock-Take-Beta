@@ -23,12 +23,14 @@ MOBILE_TEMPLATE = r"""
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--cream);color:var(--green);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 header{position:sticky;top:0;z-index:20;background:var(--green);color:white;padding:11px 14px 10px;box-shadow:0 2px 8px #0002}.brand{font-size:10px;letter-spacing:1.6px;opacity:.72}.title{font-size:20px;font-weight:800;margin-top:1px}.meta{font-size:11px;opacity:.72;margin-top:3px}
 .tabs{display:flex;gap:7px;padding:9px 10px 3px}.tabs a{flex:1;text-align:center;padding:9px;border-radius:9px;text-decoration:none;font-size:13px;font-weight:750;color:var(--green);background:var(--light);border:1px solid var(--border)}
-.quick{margin:7px 10px 4px;padding:9px;background:var(--light);border:1px solid var(--border);border-radius:11px}.quick-row{display:flex;gap:7px}.quick input{min-width:0;flex:1;border:1px solid var(--border);border-radius:9px;padding:11px;font-size:16px;text-transform:uppercase;background:white}.quick button,.jump{border:0;border-radius:9px;background:var(--green);color:white;padding:10px 12px;font-weight:800;font-size:13px}.quick-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:7px}.quick-note{font-size:11px;color:var(--muted)}.jump{text-decoration:none;background:var(--mid);white-space:nowrap}.jump.disabled{opacity:.45;pointer-events:none}
+.resume{margin:7px 10px 4px;display:flex;justify-content:flex-end}.jump{border:0;border-radius:9px;background:var(--mid);color:white;padding:9px 11px;font-weight:800;font-size:12px;text-decoration:none;white-space:nowrap}.jump.disabled{opacity:.45;pointer-events:none}
 .filters{margin:7px 10px 2px;padding:9px;background:var(--light);border:1px solid var(--border);border-radius:11px}.filter-row{display:flex;gap:5px;align-items:center;margin:4px 0;flex-wrap:wrap}.filter-label{width:76px;font-size:11px;font-weight:800}.fbtn{padding:7px 8px;border-radius:8px;text-decoration:none;font-size:11px;font-weight:800;background:white;border:1px solid currentColor}.vinted{color:var(--vinted)}.ebay{color:var(--ebay)}.etsy{color:var(--etsy)}.active.vinted{background:var(--vinted);color:white}.active.ebay{background:var(--ebay);color:white}.active.etsy{background:var(--etsy);color:white}.clear{margin-left:auto;color:var(--green);border-color:var(--border)}.shown{font-size:11px;color:var(--muted);margin-top:6px;font-weight:700}
 .summary{padding:7px 10px 1px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.pill{background:var(--light);border:1px solid var(--border);border-radius:9px;padding:8px;text-align:center}.pill strong{display:block;font-size:18px}.pill span{font-size:10px;color:var(--muted)}
 .list{padding:8px 10px 86px}.card{scroll-margin-top:84px;background:var(--light);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:8px}.card.last{box-shadow:0 0 0 3px #91A99A}.top{display:flex;gap:9px;align-items:center}.thumb{width:50px;height:50px;border-radius:7px;object-fit:cover;background:var(--soft);flex:0 0 auto}.sku{font-size:20px;font-weight:850}.title2{font-size:11px;color:var(--muted);line-height:1.2;margin-top:1px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}.flag{display:inline-block;margin-top:4px;font-size:9px;font-weight:800;border-radius:999px;padding:3px 6px;background:#f3d8ce;color:#7a2f1c}.markets{margin:8px 0 7px;display:flex;gap:5px;flex-wrap:wrap}.market{font-size:10px;font-weight:750;border-radius:999px;padding:4px 7px;background:#eee;color:#777}.market.vinted.on{background:var(--vinted);color:white}.market.ebay.on{background:var(--ebay);color:white}.market.etsy.on{background:var(--etsy);color:white}.market.dup{outline:2px solid #7a2f1c}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.actions button{border:0;border-radius:9px;padding:11px;font-size:14px;font-weight:800}.found{background:var(--green);color:#fff}.missing{background:#ead7d1;color:#6e2c20}.active-status{outline:3px solid #91a99a}.unchecked{font-size:10px;color:var(--muted);margin-top:6px;text-align:center}.last-tag{font-size:9px;font-weight:800;color:var(--green);background:var(--soft);padding:3px 6px;border-radius:99px;margin-left:5px}
-.add{display:flex;gap:8px;margin:10px}.add input{flex:1;border:1px solid var(--border);border-radius:10px;padding:13px;font-size:16px;background:white}.add button,.complete{border:0;border-radius:10px;background:var(--green);color:white;padding:12px 14px;font-weight:800}.unlisted{padding:4px 10px 90px}.urow{display:flex;align-items:center;justify-content:space-between;background:var(--light);border:1px solid var(--border);padding:12px;margin-bottom:7px;border-radius:10px;font-weight:800}.urow button{border:0;background:transparent;font-size:20px;color:var(--danger)}.complete-wrap{position:fixed;left:0;right:0;bottom:0;padding:9px 10px calc(9px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--cream) 25%);z-index:15}.complete{width:100%;font-size:15px}
+.add{display:flex;gap:8px;margin:10px}.add input{flex:1;border:1px solid var(--border);border-radius:10px;padding:13px;font-size:16px;background:white}.add button{border:0;border-radius:10px;background:var(--green);color:white;padding:12px 14px;font-weight:800}.unlisted{padding:4px 10px 90px}.urow{display:flex;align-items:center;justify-content:space-between;background:var(--light);border:1px solid var(--border);padding:12px;margin-bottom:7px;border-radius:10px;font-weight:800}.urow button{border:0;background:transparent;font-size:20px;color:var(--danger)}
+.bottom-wrap{position:fixed;left:0;right:0;bottom:0;padding:9px 10px calc(9px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--cream) 25%);z-index:30}.bottom-btn{width:100%;border:0;border-radius:10px;background:var(--green);color:white;padding:13px 14px;font-size:15px;font-weight:850;box-shadow:0 2px 8px #0002}
+.drawer-backdrop{display:none;position:fixed;inset:0;background:#0005;z-index:40}.drawer{display:none;position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:41;background:var(--light);border:1px solid var(--border);border-radius:14px;padding:12px;box-shadow:0 10px 35px #0005}.drawer.open,.drawer-backdrop.open{display:block}.drawer-title{font-size:16px;font-weight:850;margin-bottom:8px}.drawer-row{display:flex;gap:7px}.drawer input{min-width:0;flex:1;border:1px solid var(--border);border-radius:9px;padding:12px;font-size:16px;text-transform:uppercase;background:white}.drawer button{border:0;border-radius:9px;background:var(--green);color:white;padding:11px 13px;font-weight:800}.drawer .cancel{background:var(--soft);color:var(--green)}.drawer-note{font-size:11px;color:var(--muted);margin-top:7px}.drawer-success{display:none;margin-top:8px;padding:8px 9px;border-radius:8px;background:var(--soft);font-size:12px;font-weight:750}.drawer-success.show{display:block}
 .toast{margin:6px 10px 0;padding:8px 10px;background:var(--soft);border-radius:9px;font-size:12px;font-weight:750}
 </style>
 </head>
@@ -36,10 +38,7 @@ header{position:sticky;top:0;z-index:20;background:var(--green);color:white;padd
 <header><div class="brand">MASSIMO'S RAIL</div><div class="title">Shorts Stock Audit</div><div class="meta">{{ meta }}</div></header>
 <div class="tabs"><a href="{{ audit_url }}">Audit</a><a href="/unlisted">Unlisted Stock ({{ unlisted|length }})</a></div>
 {% if page == 'audit' %}
-<form class="quick" method="post" action="/quick-unlisted">
-<div class="quick-row"><input name="sku" placeholder="Add unlisted SKU e.g. JOR501" autocapitalize="characters" autocomplete="off" required><input type="hidden" name="return_to" value="{{ current_path }}"><button>Add SKU</button></div>
-<div class="quick-foot"><span class="quick-note">Adds physical stock without leaving the audit.</span><a class="jump {% if not last_anchor %}disabled{% endif %}" href="{{ last_url }}">↩ Last checked{% if last_sku %}: {{ last_sku }}{% endif %}</a></div>
-</form>
+<div class="resume"><a class="jump {% if not last_anchor %}disabled{% endif %}" href="{{ last_url }}">↩ Last checked{% if last_sku %}: {{ last_sku }}{% endif %}</a></div>
 {% if added_sku %}<div class="toast">Added {{ added_sku }} to Unlisted Physical Stock.</div>{% endif %}
 <div class="filters">
 <div class="filter-row"><span class="filter-label">Listed on:</span>{% for m in markets %}<a class="fbtn {{m}} {% if m in listed %}active{% endif %}" href="{{ toggle_urls['listed'][m] }}">{{m|title}}</a>{% endfor %}</div>
@@ -57,7 +56,51 @@ header{position:sticky;top:0;z-index:20;background:var(--green);color:white;padd
 {% if not audit.get(aid) %}<div class="unchecked">Not checked yet</div>{% endif %}
 </div>
 {% endfor %}
-</div><div class="complete-wrap"><form method="post" action="/complete"><button class="complete">Complete Audit</button></form></div>
+</div>
+<div class="bottom-wrap"><button class="bottom-btn" type="button" onclick="openUnlistedDrawer()">+ Unlisted SKU</button></div>
+<div class="drawer-backdrop" id="unlistedBackdrop" onclick="closeUnlistedDrawer()"></div>
+<div class="drawer" id="unlistedDrawer">
+<div class="drawer-title">Add unlisted physical SKU</div>
+<form id="unlistedQuickForm" onsubmit="submitUnlisted(event)">
+<div class="drawer-row"><input id="unlistedSkuInput" name="sku" placeholder="e.g. JOR501" autocapitalize="characters" autocomplete="off" required><button type="submit">Add</button><button type="button" class="cancel" onclick="closeUnlistedDrawer()">Cancel</button></div>
+</form>
+<div class="drawer-note">Adds the SKU without moving you away from your current place.</div>
+<div class="drawer-success" id="unlistedSuccess"></div>
+</div>
+<script>
+function openUnlistedDrawer(){
+  document.getElementById('unlistedBackdrop').classList.add('open');
+  document.getElementById('unlistedDrawer').classList.add('open');
+  setTimeout(function(){document.getElementById('unlistedSkuInput').focus();},80);
+}
+function closeUnlistedDrawer(){
+  document.getElementById('unlistedBackdrop').classList.remove('open');
+  document.getElementById('unlistedDrawer').classList.remove('open');
+  document.getElementById('unlistedSuccess').classList.remove('show');
+}
+async function submitUnlisted(event){
+  event.preventDefault();
+  var input=document.getElementById('unlistedSkuInput');
+  var sku=input.value.trim().toUpperCase();
+  if(!sku){return;}
+  var data=new FormData();
+  data.append('sku',sku);
+  data.append('return_to','/');
+  try{
+    var response=await fetch('/quick-unlisted',{method:'POST',body:data});
+    if(!response.ok){throw new Error('Save failed');}
+    input.value='';
+    var success=document.getElementById('unlistedSuccess');
+    success.textContent='Added '+sku+' to Unlisted Physical Stock.';
+    success.classList.add('show');
+    setTimeout(closeUnlistedDrawer,700);
+  }catch(error){
+    var success=document.getElementById('unlistedSuccess');
+    success.textContent='Could not save SKU. Try again.';
+    success.classList.add('show');
+  }
+}
+</script>
 {% else %}
 <form class="add" method="post" action="/unlisted/add"><input name="sku" placeholder="Enter SKU" autocapitalize="characters" autocomplete="off"><button>Add</button></form>
 <div class="unlisted">{% for sku in unlisted %}<div class="urow"><span>{{sku}}</span><form method="post" action="/unlisted/remove/{{sku}}"><button>×</button></form></div>{% endfor %}</div>
