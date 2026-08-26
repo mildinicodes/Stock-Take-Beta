@@ -44,7 +44,7 @@ header{position:sticky;top:0;z-index:5;background:var(--green);color:white;paddi
 {% set aid = item.audit_id or item.sku %}
 <div class="card">
 <div class="top">{% if item.cover_image %}<img class="thumb" src="{{ item.cover_image }}">{% else %}<div class="thumb"></div>{% endif %}<div><div class="sku">{{ item.sku }}</div><div class="title2">{{ item.title }}</div>{% if item.non_unique_sku %}<span class="flag">Non-unique SKU</span>{% endif %}</div></div>
-<div class="markets">{% for m in markets %}<span class="market {{m}} {% if item.marketplaces.get(m) %}on{% endif %} {% if item.marketplaces.get(m)|length > 1 %}dup{% endif %}">{{m|title}}{% if item.marketplaces.get(m)|length > 1 %} ×{{item.marketplaces.get(m)|length}}{% endif %}</span>{% endfor %}</div>
+<div class="markets">{% for m in markets %}{% set market_rows = item.marketplaces.get(m) or [] %}<span class="market {{m}} {% if market_rows %}on{% endif %} {% if market_rows|length > 1 %}dup{% endif %}">{{m|title}}{% if market_rows|length > 1 %} ×{{market_rows|length}}{% endif %}</span>{% endfor %}</div>
 <form class="actions" method="post" action="/status"><input type="hidden" name="audit_id" value="{{aid}}"><input type="hidden" name="return_to" value="{{ current_query }}"><button name="status" value="found" class="found {% if audit.get(aid)=='found' %}active-status{% endif %}">✓ Found</button><button name="status" value="missing" class="missing {% if audit.get(aid)=='missing' %}active-status{% endif %}">Missing</button></form>
 {% if not audit.get(aid) %}<div class="unchecked">Not checked yet</div>{% endif %}
 </div>
