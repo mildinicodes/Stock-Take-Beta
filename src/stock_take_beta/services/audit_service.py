@@ -18,6 +18,7 @@ class AuditService:
         return self.store.load()
 
     def refresh_marketplaces(self) -> dict[str, Any]:
+        """Refresh Crosslist data and begin a genuinely clean audit session."""
         importer = MarketplaceImportService(self.profile_dir, progress=self.progress)
         result = importer.refresh_shorts()
         state = self._state()
@@ -57,7 +58,17 @@ class AuditService:
         state["marketplace_captured_counts"] = result.get("captured_counts", {})
         state["marketplace_sku_counts"] = result.get("sku_counts", {})
         state["last_refreshed_at"] = datetime.now(timezone.utc).isoformat()
+
+        # A marketplace refresh is the start of a new physical audit. Clear every
+        # session-specific value so old ticks/unlisted SKUs cannot leak into it.
+        state["audit"] = {}
+        state["unlisted_physical_stock"] = []
+        state.pop("last_checked_audit_id", None)
+        state.pop("last_checked_at", None)
+        state.pop("last_unlisted_sku", None)
         state["audit_completed_at"] = None
+        state["completion_summary"] = None
+
         self.store.save(state)
         return state
 
