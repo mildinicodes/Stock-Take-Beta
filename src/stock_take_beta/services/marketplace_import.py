@@ -113,6 +113,13 @@ class MarketplaceImportService:
         self.progress = progress or (lambda _message: None)
 
     def refresh_shorts(self) -> dict[str, Any]:
+        """Import the complete marketplace inventory for SKU-based stock audits.
+
+        The method name is retained for backwards compatibility with the rest of
+        Stock Take Beta, but it no longer filters titles to the word 'shorts'.
+        Every captured listing is considered, then matching human SKUs are merged
+        across marketplaces into one physical audit row.
+        """
         all_rows: list[MarketplaceListing] = []
         missing_sku: list[MarketplaceListing] = []
         counts: dict[str, int] = {}
@@ -123,14 +130,12 @@ class MarketplaceImportService:
             payload = self.client.fetch_marketplace(marketplace)
             raw_rows = _find_listing_array(payload)
             captured_counts[marketplace] = len(raw_rows)
-            shorts_rows = 0
+            listing_rows = 0
             rows_with_sku = 0
 
             for raw in raw_rows:
                 title = str(raw.get("title") or "").strip()
-                if "shorts" not in title.lower():
-                    continue
-                shorts_rows += 1
+                listing_rows += 1
                 sku = _extract_sku(marketplace, raw)
                 if sku:
                     rows_with_sku += 1
@@ -147,10 +152,10 @@ class MarketplaceImportService:
                 if not listing.sku:
                     missing_sku.append(listing)
 
-            counts[marketplace] = shorts_rows
+            counts[marketplace] = listing_rows
             sku_counts[marketplace] = rows_with_sku
             self.progress(
-                f"{marketplace.title()}: {shorts_rows:,} shorts, {rows_with_sku:,} with SKU "
+                f"{marketplace.title()}: {listing_rows:,} listings, {rows_with_sku:,} with SKU "
                 f"({len(raw_rows):,} rows captured)."
             )
 
@@ -166,7 +171,7 @@ class MarketplaceImportService:
             rows = grouped[sku]
 
             if _is_non_unique_sku(sku):
-                # A placeholder such as JOR cannot tell us which physical pair
+                # A placeholder such as JOR cannot tell us which physical item
                 # an online listing belongs to. Keep every listing visible as a
                 # separate audit row, even when several share the same market.
                 for row in sorted(rows, key=lambda value: (value.marketplace, value.listing_id, value.title)):
