@@ -13,6 +13,29 @@ from .config import MOBILE_HOST, MOBILE_PORT
 from .services.audit_service import AuditService
 
 MARKETS = ("vinted", "ebay", "etsy")
+CATEGORY_PREFIXES = {
+    "all": (),
+    "trousers": ("LEV", "WRA", "DCK", "CHT", "CGO"),
+    "jor": ("JOR",),
+    "lev": ("LEV",),
+    "wra": ("WRA",),
+    "dck": ("DCK",),
+    "cht": ("CHT",),
+    "cgo": ("CGO",),
+    "other": (),
+}
+CATEGORY_LABELS = {
+    "all": "All Stock",
+    "trousers": "All Trousers",
+    "jor": "Shorts",
+    "lev": "Levi's",
+    "wra": "Wrangler Jeans",
+    "dck": "Dickies",
+    "cht": "Carhartt",
+    "cgo": "Cargo + Realtree",
+    "other": "Other",
+}
+KNOWN_PREFIXES = ("JOR", "LEV", "WRA", "DCK", "CHT", "CGO")
 
 TEMPLATE = r"""
 <!doctype html>
@@ -26,6 +49,7 @@ TEMPLATE = r"""
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--cream);color:var(--green);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 header{position:sticky;top:0;z-index:20;background:var(--green);color:white;padding:14px 16px 12px}.brand{font-size:11px;letter-spacing:1.6px;opacity:.75}.title{font-size:22px;font-weight:800}.meta{font-size:11px;opacity:.75;margin-top:3px}
 .tabs{display:flex;gap:8px;padding:10px 12px 4px}.tabs a{flex:1;text-align:center;padding:10px;border-radius:10px;text-decoration:none;font-weight:800;color:var(--green);background:var(--light);border:1px solid var(--border)}
+.categories{display:flex;gap:7px;overflow-x:auto;padding:8px 12px 2px;scrollbar-width:none}.categories::-webkit-scrollbar{display:none}.cat{white-space:nowrap;padding:9px 11px;border-radius:10px;text-decoration:none;font-size:12px;font-weight:850;color:var(--green);background:var(--light);border:1px solid var(--border)}.cat.active{background:var(--green);color:white;border-color:var(--green)}
 .resume{display:flex;justify-content:flex-end;padding:5px 12px 0}.jump{border:0;border-radius:9px;background:var(--mid);color:white;padding:9px 11px;font-weight:800;font-size:12px;text-decoration:none}.jump.disabled{opacity:.45;pointer-events:none}
 .filters{margin:8px 12px;padding:10px;background:var(--light);border:1px solid var(--border);border-radius:12px}.row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:5px 0}.label{width:86px;font-size:12px;font-weight:800}.fbtn{padding:8px 10px;border-radius:9px;text-decoration:none;font-size:12px;font-weight:800;background:white;border:1px solid currentColor}.vinted{color:var(--vinted)}.ebay{color:var(--ebay)}.etsy{color:var(--etsy)}.active.vinted{background:var(--vinted);color:white}.active.ebay{background:var(--ebay);color:white}.active.etsy{background:var(--etsy);color:white}.clear{color:var(--green);border-color:var(--border)}.shown{font-size:12px;color:var(--muted);font-weight:700;margin-top:7px}
 .summary{padding:0 12px 2px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.pill{background:var(--light);border:1px solid var(--border);border-radius:10px;padding:9px;text-align:center}.pill strong{display:block;font-size:19px}.pill span{font-size:10px;color:var(--muted)}
@@ -38,13 +62,14 @@ header{position:sticky;top:0;z-index:20;background:var(--green);color:white;padd
 </style>
 </head>
 <body>
-<header><div class="brand">MASSIMO'S RAIL</div><div class="title">Shorts Stock Audit</div><div class="meta">{{ meta }}</div></header>
+<header><div class="brand">MASSIMO'S RAIL</div><div class="title">{{ category_label }} Stock Audit</div><div class="meta">{{ meta }}</div></header>
 <div class="tabs"><a href="{{ audit_url }}">Audit</a><a href="/unlisted">Unlisted Stock ({{ unlisted|length }})</a></div>
 {% if page == 'audit' %}
+<div class="categories">{% for key,label in categories %}<a class="cat {% if key == category %}active{% endif %}" href="{{ category_urls[key] }}">{{ label }}</a>{% endfor %}</div>
 <div class="resume"><a class="jump {% if not last_anchor %}disabled{% endif %}" href="{{ last_url }}">↩ Last checked{% if last_sku %}: {{ last_sku }}{% endif %}</a></div>
 <div class="filters">
 <div class="row"><span class="label">Listed on:</span>{% for m in markets %}<a class="fbtn {{m}} {% if m in listed %}active{% endif %}" href="{{ toggles['listed'][m] }}">{{m|title}}</a>{% endfor %}</div>
-<div class="row"><span class="label">Not listed:</span>{% for m in markets %}<a class="fbtn {{m}} {% if m in not_listed %}active{% endif %}" href="{{ toggles['not'][m] }}">✕ {{m|title}}</a>{% endfor %}<a class="fbtn clear" href="/">Clear</a></div>
+<div class="row"><span class="label">Not listed:</span>{% for m in markets %}<a class="fbtn {{m}} {% if m in not_listed %}active{% endif %}" href="{{ toggles['not'][m] }}">✕ {{m|title}}</a>{% endfor %}<a class="fbtn clear" href="{{ clear_url }}">Clear</a></div>
 <div class="shown">{{ items|length }} items shown</div>
 </div>
 <div class="summary"><div class="pill"><strong>{{ found }}</strong><span>Found</span></div><div class="pill"><strong>{{ missing }}</strong><span>Missing</span></div><div class="pill"><strong>{{ unchecked }}</strong><span>To check</span></div></div>
@@ -63,7 +88,7 @@ header{position:sticky;top:0;z-index:20;background:var(--green);color:white;padd
 <div class="drawer" id="unlistedDrawer">
 <div class="drawer-title">Add unlisted physical SKU</div>
 <form id="unlistedQuickForm" onsubmit="submitUnlisted(event)">
-<div class="drawer-row"><input id="unlistedSkuInput" name="sku" placeholder="e.g. JOR501" autocapitalize="characters" autocomplete="off" required><button type="submit">Add</button><button type="button" class="cancel" onclick="closeUnlistedDrawer()">Cancel</button></div>
+<div class="drawer-row"><input id="unlistedSkuInput" name="sku" placeholder="e.g. DCK501" autocapitalize="characters" autocomplete="off" required><button type="submit">Add</button><button type="button" class="cancel" onclick="closeUnlistedDrawer()">Cancel</button></div>
 </form>
 <div class="drawer-note">Adds the SKU without moving you away from your current place.</div>
 <div class="drawer-success" id="unlistedSuccess"></div>
@@ -96,8 +121,24 @@ def _parse_set(value: str) -> set[str]:
     return {part for part in value.split(",") if part in MARKETS}
 
 
-def _query_url(listed: set[str], not_listed: set[str]) -> str:
+def _normalise_category(value: str) -> str:
+    value = value.lower().strip()
+    return value if value in CATEGORY_PREFIXES else "all"
+
+
+def _matches_category(item: dict[str, Any], category: str) -> bool:
+    sku = str(item.get("sku") or "").upper().strip()
+    if category == "all":
+        return True
+    if category == "other":
+        return not any(sku.startswith(prefix) for prefix in KNOWN_PREFIXES)
+    return any(sku.startswith(prefix) for prefix in CATEGORY_PREFIXES[category])
+
+
+def _query_url(listed: set[str], not_listed: set[str], category: str = "all") -> str:
     bits: list[str] = []
+    if category != "all":
+        bits.append("category=" + category)
     if listed:
         bits.append("listed=" + ",".join(sorted(listed)))
     if not_listed:
@@ -143,7 +184,7 @@ def create_mobile_app(service: AuditService) -> Flask:
 
     @app.get("/health")
     def health() -> Response:
-        return Response("Stock Take Beta mobile server v2 - unlisted quick add", mimetype="text/plain")
+        return Response("Stock Take Beta mobile server v2 - SKU categories", mimetype="text/plain")
 
     @app.errorhandler(Exception)
     def show_error(exc: Exception):
@@ -164,40 +205,48 @@ def create_mobile_app(service: AuditService) -> Flask:
         all_items = [_safe_item(item) for item in raw_items]
         audit = state.get("audit", {}) if isinstance(state.get("audit"), dict) else {}
 
+        category = _normalise_category(request.args.get("category", "all")) if page == "audit" else "all"
+        category_items = [item for item in all_items if _matches_category(item, category)] if page == "audit" else all_items
         listed = _parse_set(request.args.get("listed", "")) if page == "audit" else set()
         not_listed = _parse_set(request.args.get("not", "")) if page == "audit" else set()
         not_listed -= listed
 
-        def matches(item: dict[str, Any]) -> bool:
+        def matches_market(item: dict[str, Any]) -> bool:
             present = item["marketplaces"]
             return all(bool(present[m]) for m in listed) and all(not present[m] for m in not_listed)
 
-        items = [item for item in all_items if matches(item)] if page == "audit" else all_items
-        valid_ids = {item["audit_id"] for item in all_items}
+        items = [item for item in category_items if matches_market(item)] if page == "audit" else all_items
+        valid_ids = {item["audit_id"] for item in category_items}
         found = sum(1 for key, value in audit.items() if key in valid_ids and value == "found")
         missing = sum(1 for key, value in audit.items() if key in valid_ids and value == "missing")
-        unchecked = max(0, len(all_items) - found - missing)
+        unchecked = max(0, len(category_items) - found - missing)
 
         toggles = {"listed": {}, "not": {}}
         for market in MARKETS:
             nl = set(listed); nn = set(not_listed)
             if market in nl: nl.remove(market)
             else: nn.discard(market); nl.add(market)
-            toggles["listed"][market] = _query_url(nl, nn)
+            toggles["listed"][market] = _query_url(nl, nn, category)
             nl = set(listed); nn = set(not_listed)
             if market in nn: nn.remove(market)
             else: nl.discard(market); nn.add(market)
-            toggles["not"][market] = _query_url(nl, nn)
+            toggles["not"][market] = _query_url(nl, nn, category)
 
+        category_urls = {
+            key: _query_url(listed, not_listed, key)
+            for key in CATEGORY_PREFIXES
+        }
+        clear_url = _query_url(set(), set(), category)
         refreshed = state.get("last_refreshed_at") or "Not refreshed yet"
         current_path = request.full_path.rstrip("?")
         last_checked = state.get("last_checked_audit_id")
-        last_item = next((item for item in all_items if item["audit_id"] == last_checked), None)
+        last_item = next((item for item in category_items if item["audit_id"] == last_checked), None)
         last_anchor = last_item["anchor_id"] if last_item else None
         last_sku = last_item["sku"] if last_item else None
-        base_audit_url = _query_url(listed, not_listed)
+        base_audit_url = _query_url(listed, not_listed, category)
         last_url = base_audit_url + (("#" + last_anchor) if last_anchor else "")
         unlisted = state.get("unlisted_physical_stock", []) if isinstance(state.get("unlisted_physical_stock"), list) else []
+        category_label = CATEGORY_LABELS[category]
 
         return render_template_string(
             TEMPLATE,
@@ -208,7 +257,7 @@ def create_mobile_app(service: AuditService) -> Flask:
             missing=missing,
             unchecked=unchecked,
             unlisted=unlisted,
-            meta=f"{len(all_items)} audit rows · last refresh {refreshed}",
+            meta=f"{len(category_items)} audit rows · last refresh {refreshed}",
             markets=MARKETS,
             listed=listed,
             not_listed=not_listed,
@@ -219,6 +268,11 @@ def create_mobile_app(service: AuditService) -> Flask:
             last_anchor=last_anchor,
             last_sku=last_sku,
             last_url=last_url,
+            category=category,
+            category_label=category_label,
+            categories=[(key, CATEGORY_LABELS[key]) for key in ("all", "trousers", "jor", "lev", "wra", "dck", "cht", "cgo", "other")],
+            category_urls=category_urls,
+            clear_url=clear_url,
         )
 
     @app.get("/")
