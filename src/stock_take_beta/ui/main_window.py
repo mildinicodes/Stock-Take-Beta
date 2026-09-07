@@ -15,6 +15,32 @@ MARKET_COLORS = {
     "etsy": "#F1641E",
 }
 
+CATEGORY_PREFIXES = {
+    "ALL": (),
+    "TROUSERS": ("LEV", "WRA", "DCK", "CHT", "CGO"),
+    "JOR": ("JOR",),
+    "LEV": ("LEV",),
+    "WRA": ("WRA",),
+    "DCK": ("DCK",),
+    "CHT": ("CHT",),
+    "CGO": ("CGO",),
+    "OTHER": (),
+}
+
+CATEGORY_LABELS = {
+    "ALL": "All Stock",
+    "TROUSERS": "All Trousers",
+    "JOR": "Shorts",
+    "LEV": "Levi's",
+    "WRA": "Wrangler Jeans",
+    "DCK": "Dickies",
+    "CHT": "Carhartt",
+    "CGO": "Cargo + Realtree",
+    "OTHER": "Other",
+}
+
+KNOWN_PREFIXES = ("JOR", "LEV", "WRA", "DCK", "CHT", "CGO")
+
 
 class MainWindow(tk.Tk):
     def __init__(self, progress_store: ProgressStore, audit_service: AuditService, mobile_url: str) -> None:
@@ -24,6 +50,7 @@ class MainWindow(tk.Tk):
         self.mobile_url = mobile_url
         self.listed_on: set[str] = set()
         self.not_listed_on: set[str] = set()
+        self.selected_category = "ALL"
         self.title(f"{APP_NAME} — Massimo's Rail")
         self.geometry("1320x820")
         self.minsize(1060, 700)
@@ -88,6 +115,38 @@ class MainWindow(tk.Tk):
         text = market.title() if mode == "listed" else f"✕ {market.title()}"
         return tk.Button(parent, text=text, command=lambda: self._toggle_market_filter(market, mode), bg=color if selected else COLORS["cream_light"], fg=COLORS["white"] if selected else color, activebackground=color, activeforeground=COLORS["white"], highlightbackground=color, highlightthickness=1, bd=0, padx=12, pady=7, font=("Arial", 9, "bold"), cursor="hand2")
 
+    def _category_button(self, parent: tk.Widget, category: str) -> tk.Button:
+        selected = category == self.selected_category
+        return tk.Button(
+            parent,
+            text=CATEGORY_LABELS[category],
+            command=lambda: self._select_category(category),
+            bg=COLORS["green"] if selected else COLORS["cream_light"],
+            fg=COLORS["white"] if selected else COLORS["green"],
+            activebackground=COLORS["green_mid"],
+            activeforeground=COLORS["white"],
+            highlightbackground=COLORS["border"],
+            highlightthickness=1,
+            bd=0,
+            padx=10,
+            pady=7,
+            font=("Arial", 9, "bold"),
+            cursor="hand2",
+        )
+
+    def _select_category(self, category: str) -> None:
+        self.selected_category = category if category in CATEGORY_PREFIXES else "ALL"
+        self.show_audit()
+
+    def _matches_category(self, item: dict) -> bool:
+        sku = str(item.get("sku") or "").upper().strip()
+        category = self.selected_category
+        if category == "ALL":
+            return True
+        if category == "OTHER":
+            return not any(sku.startswith(prefix) for prefix in KNOWN_PREFIXES)
+        return any(sku.startswith(prefix) for prefix in CATEGORY_PREFIXES[category])
+
     def _toggle_market_filter(self, market: str, mode: str) -> None:
         target = self.listed_on if mode == "listed" else self.not_listed_on
         opposite = self.not_listed_on if mode == "listed" else self.listed_on
@@ -103,7 +162,7 @@ class MainWindow(tk.Tk):
         self.not_listed_on.clear()
         self.show_audit()
 
-    def _matches_filters(self, item: dict) -> bool:
+    def _matches_market_filters(self, item: dict) -> bool:
         markets = item.get("marketplaces", {})
         return not any(not markets.get(m) for m in self.listed_on) and not any(markets.get(m) for m in self.not_listed_on)
 
@@ -118,13 +177,15 @@ class MainWindow(tk.Tk):
         self._clear()
         state = self.progress_store.load()
         items = state.get("marketplace_items", [])
-        filtered_items = [item for item in items if self._matches_filters(item)]
+        category_items = [item for item in items if self._matches_category(item)]
+        filtered_items = [item for item in category_items if self._matches_market_filters(item)]
         audit = state.get("audit", {})
-        valid_ids = {item.get("audit_id") or item.get("sku") for item in items}
+        valid_ids = {item.get("audit_id") or item.get("sku") for item in category_items}
         found = sum(1 for key, value in audit.items() if key in valid_ids and value == "found")
         missing = sum(1 for key, value in audit.items() if key in valid_ids and value == "missing")
-        unchecked = max(0, len(items) - found - missing)
-        self.page_title.config(text="Shorts Stock Audit")
+        unchecked = max(0, len(category_items) - found - missing)
+        category_label = CATEGORY_LABELS[self.selected_category]
+        self.page_title.config(text=f"{category_label} Stock Audit")
         refreshed = state.get("last_refreshed_at") or "Never"
         counts = state.get("marketplace_counts", {})
         count_text = " · ".join(f"{name.title()} {counts.get(name, 0)}" for name in ("vinted", "ebay", "etsy") if counts)
@@ -132,7 +193,7 @@ class MainWindow(tk.Tk):
 
         summary = tk.Frame(self.body, bg=COLORS["cream"])
         summary.grid(row=0, column=0, sticky="ew", pady=(0, 12))
-        self._summary(summary, "Audit Rows", str(len(items)), 0)
+        self._summary(summary, "Audit Rows", str(len(category_items)), 0)
         self._summary(summary, "Found", str(found), 1)
         self._summary(summary, "Missing", str(missing), 2)
         self._summary(summary, "To check", str(unchecked), 3)
@@ -140,7 +201,7 @@ class MainWindow(tk.Tk):
         panel = tk.Frame(self.body, bg=COLORS["cream_light"], highlightbackground=COLORS["border"], highlightthickness=1)
         panel.grid(row=1, column=0, sticky="nsew")
         panel.grid_columnconfigure(0, weight=1)
-        panel.grid_rowconfigure(3, weight=1)
+        panel.grid_rowconfigure(4, weight=1)
 
         toolbar = tk.Frame(panel, bg=COLORS["cream_light"])
         toolbar.grid(row=0, column=0, sticky="ew", padx=16, pady=(14, 8))
@@ -149,8 +210,14 @@ class MainWindow(tk.Tk):
         self._button(toolbar, "Mark Missing", lambda: self._mark_selected("missing"), secondary=True).pack(side="left", padx=(8, 0))
         self._button(toolbar, "Complete Audit", self._complete_audit).pack(side="right")
 
+        categories = tk.Frame(panel, bg=COLORS["cream_light"])
+        categories.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 6))
+        tk.Label(categories, text="SKU category:", width=13, anchor="w", bg=COLORS["cream_light"], fg=COLORS["text"], font=("Arial", 9, "bold")).pack(side="left")
+        for category in ("ALL", "TROUSERS", "JOR", "LEV", "WRA", "DCK", "CHT", "CGO", "OTHER"):
+            self._category_button(categories, category).pack(side="left", padx=(0, 5))
+
         filters = tk.Frame(panel, bg=COLORS["cream_light"])
-        filters.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 4))
+        filters.grid(row=2, column=0, sticky="ew", padx=16, pady=(0, 4))
         listed_row = tk.Frame(filters, bg=COLORS["cream_light"]); listed_row.pack(fill="x", pady=2)
         tk.Label(listed_row, text="Listed on:", width=13, anchor="w", bg=COLORS["cream_light"], fg=COLORS["text"], font=("Arial", 9, "bold")).pack(side="left")
         for market in ("vinted", "ebay", "etsy"):
@@ -159,10 +226,10 @@ class MainWindow(tk.Tk):
         tk.Label(not_row, text="Not listed on:", width=13, anchor="w", bg=COLORS["cream_light"], fg=COLORS["text"], font=("Arial", 9, "bold")).pack(side="left")
         for market in ("vinted", "ebay", "etsy"):
             self._market_filter_button(not_row, market, "not").pack(side="left", padx=(0, 7))
-        self._button(not_row, "Clear filters", self._clear_market_filters, secondary=True).pack(side="left", padx=(8, 0))
+        self._button(not_row, "Clear marketplace filters", self._clear_market_filters, secondary=True).pack(side="left", padx=(8, 0))
 
         resultbar = tk.Frame(panel, bg=COLORS["cream_light"])
-        resultbar.grid(row=2, column=0, sticky="ew", padx=16, pady=(4, 8))
+        resultbar.grid(row=3, column=0, sticky="ew", padx=16, pady=(4, 8))
         tk.Label(resultbar, text=f"{len(filtered_items)} items shown", bg=COLORS["green_soft"], fg=COLORS["green"], font=("Arial", 9, "bold"), padx=10, pady=5).pack(side="left")
         self.quick_unlisted_entry = tk.Entry(resultbar, font=("Arial", 10), width=18)
         self.quick_unlisted_entry.pack(side="left", padx=(14, 6))
@@ -181,8 +248,8 @@ class MainWindow(tk.Tk):
         for key, title in (("sku", "SKU"), ("vinted", "Vinted"), ("ebay", "eBay"), ("etsy", "Etsy"), ("physical", "Physical"), ("flags", "Flags")):
             self.tree.heading(key, text=title)
         self.tree.column("sku", width=150, anchor="w"); self.tree.column("vinted", width=100, anchor="center"); self.tree.column("ebay", width=100, anchor="center"); self.tree.column("etsy", width=100, anchor="center"); self.tree.column("physical", width=120, anchor="center"); self.tree.column("flags", width=240, anchor="w")
-        self.tree.grid(row=3, column=0, sticky="nsew", padx=16, pady=(0, 8))
-        scrollbar = ttk.Scrollbar(panel, orient="vertical", command=self.tree.yview); self.tree.configure(yscrollcommand=scrollbar.set); scrollbar.grid(row=3, column=1, sticky="ns", pady=(0, 8))
+        self.tree.grid(row=4, column=0, sticky="nsew", padx=16, pady=(0, 8))
+        scrollbar = ttk.Scrollbar(panel, orient="vertical", command=self.tree.yview); self.tree.configure(yscrollcommand=scrollbar.set); scrollbar.grid(row=4, column=1, sticky="ns", pady=(0, 8))
 
         for item in filtered_items:
             markets = item.get("marketplaces", {})
@@ -192,8 +259,8 @@ class MainWindow(tk.Tk):
             status = audit.get(audit_id, "Unchecked").title()
             self.tree.insert("", "end", iid=audit_id, values=(item["sku"], "✓" if markets.get("vinted") else "—", "✓" if markets.get("ebay") else "—", "✓" if markets.get("etsy") else "—", status, ", ".join(flags)))
 
-        non_unique_count = sum(1 for item in items if item.get("non_unique_sku"))
-        tk.Label(panel, text=f"Missing SKU listings: {len(state.get('missing_sku', []))}   ·   Duplicate flags: {len(state.get('duplicates', []))}   ·   Non-unique SKU rows: {non_unique_count}", bg=COLORS["cream_light"], fg=COLORS["muted"], font=("Arial", 9)).grid(row=4, column=0, sticky="w", padx=16, pady=(2, 14))
+        non_unique_count = sum(1 for item in category_items if item.get("non_unique_sku"))
+        tk.Label(panel, text=f"Category: {category_label}   ·   Missing SKU listings: {len(state.get('missing_sku', []))}   ·   Duplicate flags: {len(state.get('duplicates', []))}   ·   Non-unique SKU rows: {non_unique_count}", bg=COLORS["cream_light"], fg=COLORS["muted"], font=("Arial", 9)).grid(row=5, column=0, sticky="w", padx=16, pady=(2, 14))
 
     def _refresh_marketplaces(self) -> None:
         self.status_label.config(text="Refreshing Crosslist…")
@@ -222,6 +289,7 @@ class MainWindow(tk.Tk):
             return
         item = next((i for i in state.get("marketplace_items", []) if (i.get("audit_id") or i.get("sku")) == audit_id), None)
         if item:
+            self.selected_category = "ALL"
             self.listed_on.clear(); self.not_listed_on.clear(); self.show_audit(); self.after(20, self._jump_last_checked)
 
     def _quick_add_unlisted(self) -> None:
@@ -238,7 +306,7 @@ class MainWindow(tk.Tk):
         self.show_audit()
 
     def show_unlisted(self) -> None:
-        self._clear(); self.page_title.config(text="Unlisted Physical Stock"); self.page_subtitle.config(text="Physical shorts found during stock take that are not represented online.")
+        self._clear(); self.page_title.config(text="Unlisted Physical Stock"); self.page_subtitle.config(text="Physical stock found during stock take that is not represented online.")
         panel = tk.Frame(self.body, bg=COLORS["cream_light"], highlightbackground=COLORS["border"], highlightthickness=1); panel.grid(row=0, column=0, sticky="nsew")
         self.body.grid_rowconfigure(0, weight=1); panel.grid_columnconfigure(0, weight=1); panel.grid_rowconfigure(1, weight=1)
         entrybar = tk.Frame(panel, bg=COLORS["cream_light"]); entrybar.grid(row=0, column=0, sticky="ew", padx=18, pady=16)
